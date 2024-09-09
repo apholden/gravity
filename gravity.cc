@@ -73,7 +73,7 @@ void Add_force(Entity &inner, Entity &outer, Real force)
 {
     auto dx = inner.x - outer.x;
     auto dy = inner.y - outer.y;
-    
+
     auto theta = atan2(dy, dx);
     auto f_x = force * cos(theta);
     auto f_y = force * sin(theta);
@@ -95,6 +95,8 @@ int main(int argc, char *argv[])
 
     for (int i = 0; i < total_steps; ++i)
     {
+        // Loop over all pairs of entities and calculate the force between them due to gravity.
+        // Then add the force to each entity.
         for(auto outer = entities.begin(); outer != entities.end(); ++outer)
         {
             for(auto inner = entities.begin(); inner != outer; ++inner)
