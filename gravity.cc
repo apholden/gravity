@@ -49,13 +49,39 @@ std::ostream &operator<<(std::ostream &os, Entity const &e)
     return os;
 }
 
-Real Get_attraction(Entity &a, Entity &b)
+std::ostream &operator<<(std::ostream &os, std::vector<Entity> const &entities)
+{
+    auto space = "";
+    for(auto const &e : entities)
+    {
+        os << space << e;
+        space = "  ";
+    }
+    return os;
+}
+
+Real Get_attraction(Entity const &a, Entity const &b)
 {
     auto dx = b.x - a.x;
     auto dy = b.y - a.y;
-    auto d2 = dx * dx + dy * dy;
-    auto f = G * a.mass * b.mass / d2;
+    auto d_squared = dx * dx + dy * dy;
+    auto f = G * a.mass * b.mass / d_squared;
     return f;
+}
+
+void Add_force(Entity &inner, Entity &outer, Real force)
+{
+    auto dx = inner.x - outer.x;
+    auto dy = inner.y - outer.y;
+    
+    auto theta = atan2(dy, dx);
+    auto f_x = force * cos(theta);
+    auto f_y = force * sin(theta);
+
+    outer.a_x += f_x / outer.mass;
+    outer.a_y += f_y / outer.mass;
+    inner.a_x -= f_x / inner.mass;
+    inner.a_y -= f_y / inner.mass;
 }
 
 int main(int argc, char *argv[])
@@ -65,11 +91,7 @@ int main(int argc, char *argv[])
     entities.push_back(Entity(1, 1, 0));
     entities.push_back(Entity(2, 1, 1));
 
-    for(auto &e : entities)
-    {
-        std::cout << e << ' ';
-    }
-    std::cout << std::endl;
+    std::cout << entities << std::endl;
 
     for (int i = 0; i < total_steps; ++i)
     {
@@ -78,15 +100,7 @@ int main(int argc, char *argv[])
             for(auto inner = entities.begin(); inner != outer; ++inner)
             {
                 auto force = Get_attraction(*outer, *inner);
-                auto dx = inner->x - outer->x;
-                auto dy = inner->y - outer->y;
-                auto theta = atan2(dy, dx);
-                auto f_x = force * cos(theta);
-                auto f_y = force * sin(theta);
-                outer->a_x += f_x / outer->mass;
-                outer->a_y += f_y / outer->mass;
-                inner->a_x -= f_x / inner->mass;
-                inner->a_y -= f_y / inner->mass;
+                Add_force(*inner, *outer, force);
             }
         }
 
@@ -97,18 +111,12 @@ int main(int argc, char *argv[])
 
         if (i % steps_per_print == 0)
         {
-            for(auto &e : entities)
-            {
-                std::cout << e << "   ";
-            }
-            std::cout << std::endl;
+            std::cout << entities << std::endl;
         }
     }
 
-    for(auto &e : entities)
-    {
-        std::cout << e << ' ';
-    }
-    std::cout << std::endl;
+    std::cout << entities << std::endl;
     return 0;
 }
+
+
