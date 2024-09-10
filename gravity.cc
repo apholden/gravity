@@ -6,9 +6,8 @@
 using boost::math::constants::pi;
 
 #include <boost/multiprecision/cpp_dec_float.hpp>
-using boost::multiprecision::cpp_dec_float_50;
 
-typedef cpp_dec_float_50 Real;
+typedef boost::multiprecision::cpp_dec_float_50 Real;
 
 const Real G = 6.67430e-11;  // m^3 kg^-1 s^-2
 const int total_steps = 1000000;
