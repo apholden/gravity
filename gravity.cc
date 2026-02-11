@@ -10,8 +10,9 @@ using boost::math::constants::pi;
 typedef boost::multiprecision::cpp_dec_float_50 Real;
 
 const Real G = 6.67430e-11;  // m^3 kg^-1 s^-2
-const int total_steps = 1000000;
-const int steps_per_print = total_steps / 100;
+int const total_steps = 100000;
+int const steps_per_print = total_steps / 100;
+Real const DELTA_TIME = Real("0.1");  // seconds
 
 /**
  * An entity in a 2D space.
@@ -192,7 +193,7 @@ int main(int argc, char *argv[])
 
     for (int i = 0; i < total_steps; ++i)
     {
-        rk4_step(entities, Real("0.01"));
+        rk4_step(entities, DELTA_TIME);
 
         if (i % steps_per_print == 0)
         {
