@@ -15,7 +15,7 @@ const int steps_per_print = total_steps / 100;
 
 /**
  * An entity in a 2D space.
- * @note The entity has a mass, position, velocity, and acceleration.
+ * @note The entity has a mass, position, and velocity.
  * @note The entity is affected by gravity.
  */
 class Entity
@@ -24,35 +24,11 @@ public:
     Entity(Real mass, Real x, Real y)
         : mass(mass), x(x), y(y) {}
 
-    /**
-     * Update the entity's position and velocity.
-     * @param dt The time step.
-     * @note The entity's position is updated using the formula:
-     *     x = x + v_x * dt
-     *     y = y + v_y * dt
-     * @note The entity's velocity is updated using the formula:
-     *    v_x = v_x + a_x * dt
-     *    v_y = v_y + a_y * dt
-     * @note The entity's acceleration is reset to zero after updating the velocity.
-     */
-    void Update(Real dt)
-    {
-        v_x += a_x * dt;
-        v_y += a_y * dt;
-        x += v_x * dt;
-        y += v_y * dt;
-
-        a_x = 0;
-        a_y = 0;
-    }
-
     Real const mass;
     Real x;
     Real y;
     Real v_x = 0;
     Real v_y = 0;
-    Real a_x = 0;
-    Real a_y = 0;
 };
 
 /**
@@ -95,49 +71,114 @@ std::ostream &operator<<(std::ostream &os, std::vector<Entity> const &entities)
 }
 
 /**
- * Calculate the force of attraction between two entities due to gravity.
- * @param a The first entity.
- * @param b The second entity.
- * @return The force of attraction between the two entities.
- * @note The force is always attractive.
- * @note The force is calculated using Newton's law of universal gravitation.
- * @note The force is calculated using the formula:
- *      F = G * m1 * m2 / r^2
+ * Compute gravitational accelerations for all entities at the given positions.
+ * @param entities The entities (used for masses).
+ * @param pos_x The x-coordinates of each entity.
+ * @param pos_y The y-coordinates of each entity.
+ * @return A vector of (a_x, a_y) pairs for each entity.
  */
-Real Get_attraction(Entity const &a, Entity const &b)
+std::vector<std::pair<Real,Real>> compute_accelerations(
+    std::vector<Entity> const &entities,
+    std::vector<Real> const &pos_x,
+    std::vector<Real> const &pos_y)
 {
-    auto dx = b.x - a.x;
-    auto dy = b.y - a.y;
-    auto d_squared = dx * dx + dy * dy;
-    auto f = G * a.mass * b.mass / d_squared;
-    return f;
+    size_t n = entities.size();
+    std::vector<std::pair<Real,Real>> acc(n, {Real(0), Real(0)});
+
+    for (size_t i = 0; i < n; ++i)
+    {
+        for (size_t j = 0; j < i; ++j)
+        {
+            auto dx = pos_x[i] - pos_x[j];
+            auto dy = pos_y[i] - pos_y[j];
+            auto d_squared = dx * dx + dy * dy;
+            auto f = G * entities[i].mass * entities[j].mass / d_squared;
+
+            auto theta = atan2(dy, dx);
+            auto f_x = f * cos(theta);
+            auto f_y = f * sin(theta);
+
+            acc[i].first -= f_x / entities[i].mass;
+            acc[i].second -= f_y / entities[i].mass;
+            acc[j].first += f_x / entities[j].mass;
+            acc[j].second += f_y / entities[j].mass;
+        }
+    }
+
+    return acc;
 }
 
 /**
- * Add the force of attraction between two entities due to gravity.
- * @param entity_1 The first entity.
- * @param entity_2 The second entity.
- * @param force The force of attraction between the two entities.
- * @note The force is always attractive.
- * @note The force is added to the acceleration of each entity.
- * @note The force is added using Newton's second law of motion.
- * @note The force is added using the formula:
- *      F = m * a
- *      a = F / m
+ * Advance all entities by one time step using the 4th-order Runge-Kutta method.
+ * @param entities The entities to update.
+ * @param dt The time step.
+ * @note For each entity the state is (x, y, v_x, v_y) and the derivative is
+ *       (v_x, v_y, a_x, a_y) where accelerations come from gravitational interactions.
  */
-void Add_force(Entity &entity_1, Entity &entity_2, Real force)
+void rk4_step(std::vector<Entity> &entities, Real dt)
 {
-    auto dx = entity_1.x - entity_2.x;
-    auto dy = entity_1.y - entity_2.y;
+    size_t n = entities.size();
 
-    auto theta = atan2(dy, dx);
-    auto f_x = force * cos(theta);
-    auto f_y = force * sin(theta);
+    // Save initial state
+    std::vector<Real> x0(n), y0(n), vx0(n), vy0(n);
+    for (size_t i = 0; i < n; ++i)
+    {
+        x0[i] = entities[i].x;
+        y0[i] = entities[i].y;
+        vx0[i] = entities[i].v_x;
+        vy0[i] = entities[i].v_y;
+    }
 
-    entity_1.a_x -= f_x / entity_1.mass;
-    entity_1.a_y -= f_y / entity_1.mass;
-    entity_2.a_x += f_x / entity_2.mass;
-    entity_2.a_y += f_y / entity_2.mass;
+    // k1: derivatives at the current state
+    auto a1 = compute_accelerations(entities, x0, y0);
+
+    // State at t + dt/2 using k1
+    std::vector<Real> x1(n), y1(n), vx1(n), vy1(n);
+    for (size_t i = 0; i < n; ++i)
+    {
+        x1[i] = x0[i] + dt/2 * vx0[i];
+        y1[i] = y0[i] + dt/2 * vy0[i];
+        vx1[i] = vx0[i] + dt/2 * a1[i].first;
+        vy1[i] = vy0[i] + dt/2 * a1[i].second;
+    }
+
+    // k2: derivatives at the midpoint using k1
+    auto a2 = compute_accelerations(entities, x1, y1);
+
+    // State at t + dt/2 using k2
+    std::vector<Real> x2(n), y2(n), vx2(n), vy2(n);
+    for (size_t i = 0; i < n; ++i)
+    {
+        x2[i] = x0[i] + dt/2 * vx1[i];
+        y2[i] = y0[i] + dt/2 * vy1[i];
+        vx2[i] = vx0[i] + dt/2 * a2[i].first;
+        vy2[i] = vy0[i] + dt/2 * a2[i].second;
+    }
+
+    // k3: derivatives at the midpoint using k2
+    auto a3 = compute_accelerations(entities, x2, y2);
+
+    // State at t + dt using k3
+    std::vector<Real> x3(n), y3(n), vx3(n), vy3(n);
+    for (size_t i = 0; i < n; ++i)
+    {
+        x3[i] = x0[i] + dt * vx2[i];
+        y3[i] = y0[i] + dt * vy2[i];
+        vx3[i] = vx0[i] + dt * a3[i].first;
+        vy3[i] = vy0[i] + dt * a3[i].second;
+    }
+
+    // k4: derivatives at the endpoint using k3
+    auto a4 = compute_accelerations(entities, x3, y3);
+
+    // Final RK4 combination: y_{n+1} = y_n + dt/6 * (k1 + 2*k2 + 2*k3 + k4)
+    for (size_t i = 0; i < n; ++i)
+    {
+        entities[i].x = x0[i] + dt/6 * (vx0[i] + 2*vx1[i] + 2*vx2[i] + vx3[i]);
+        entities[i].y = y0[i] + dt/6 * (vy0[i] + 2*vy1[i] + 2*vy2[i] + vy3[i]);
+        entities[i].v_x = vx0[i] + dt/6 * (a1[i].first + 2*a2[i].first + 2*a3[i].first + a4[i].first);
+        entities[i].v_y = vy0[i] + dt/6 * (a1[i].second + 2*a2[i].second + 2*a3[i].second + a4[i].second);
+    }
 }
 
 int main(int argc, char *argv[])
@@ -151,21 +192,7 @@ int main(int argc, char *argv[])
 
     for (int i = 0; i < total_steps; ++i)
     {
-        // Loop over all pairs of entities and calculate the force between them due to gravity.
-        // Then add the force to each entity.
-        for(auto outer = entities.begin(); outer != entities.end(); ++outer)
-        {
-            for(auto inner = entities.begin(); inner != outer; ++inner)
-            {
-                auto force = Get_attraction(*outer, *inner);
-                Add_force(*inner, *outer, force);
-            }
-        }
-
-        for(auto &e : entities)
-        {
-            e.Update(0.01);
-        }
+        rk4_step(entities, Real("0.01"));
 
         if (i % steps_per_print == 0)
         {
@@ -176,5 +203,3 @@ int main(int argc, char *argv[])
     std::cout << entities << std::endl;
     return 0;
 }
-
-
