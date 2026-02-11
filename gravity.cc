@@ -14,6 +14,18 @@ int const total_steps = 100000;
 int const steps_per_print = total_steps / 100;
 Real const DELTA_TIME = Real("0.1");  // seconds
 
+// Angle conversion from radians to degrees
+Real const RADIANS_TO_DEGREES = 180 / pi<Real>();
+
+// RK4 integration coefficients
+Real const RK4_HALF = Real("0.5");
+Real const RK4_SIXTH = Real("1") / Real("6");
+int const RK4_MIDPOINT_COEFF = 2;
+
+// Output formatting
+std::string const OUTPUT_SEPARATOR = "  ";
+std::string const OUTPUT_INITIAL = "";
+
 /**
  * An entity in a 2D space.
  * @note The entity has a mass, position, and velocity.
@@ -45,7 +57,7 @@ public:
 std::ostream &operator<<(std::ostream &os, Entity const &e)
 {
     auto speed = sqrt(e.v_x * e.v_x + e.v_y * e.v_y);
-    auto angle = atan2(e.v_y, e.v_x) * 180 / pi<Real>();
+    auto angle = atan2(e.v_y, e.v_x) * RADIANS_TO_DEGREES;
     os << 'p' << e.x << ',' << e.y
         << ", v" << speed << "∠" << angle;
     return os;
@@ -62,11 +74,11 @@ std::ostream &operator<<(std::ostream &os, Entity const &e)
  */
 std::ostream &operator<<(std::ostream &os, std::vector<Entity> const &entities)
 {
-    auto space = "";
+    auto space = OUTPUT_INITIAL;
     for(auto const &e : entities)
     {
         os << space << e;
-        space = "  ";
+        space = OUTPUT_SEPARATOR;
     }
     return os;
 }
@@ -137,10 +149,10 @@ void rk4_step(std::vector<Entity> &entities, Real dt)
     std::vector<Real> x1(n), y1(n), vx1(n), vy1(n);
     for (size_t i = 0; i < n; ++i)
     {
-        x1[i] = x0[i] + dt/2 * vx0[i];
-        y1[i] = y0[i] + dt/2 * vy0[i];
-        vx1[i] = vx0[i] + dt/2 * a1[i].first;
-        vy1[i] = vy0[i] + dt/2 * a1[i].second;
+        x1[i] = x0[i] + dt * RK4_HALF * vx0[i];
+        y1[i] = y0[i] + dt * RK4_HALF * vy0[i];
+        vx1[i] = vx0[i] + dt * RK4_HALF * a1[i].first;
+        vy1[i] = vy0[i] + dt * RK4_HALF * a1[i].second;
     }
 
     // k2: derivatives at the midpoint using k1
@@ -150,10 +162,10 @@ void rk4_step(std::vector<Entity> &entities, Real dt)
     std::vector<Real> x2(n), y2(n), vx2(n), vy2(n);
     for (size_t i = 0; i < n; ++i)
     {
-        x2[i] = x0[i] + dt/2 * vx1[i];
-        y2[i] = y0[i] + dt/2 * vy1[i];
-        vx2[i] = vx0[i] + dt/2 * a2[i].first;
-        vy2[i] = vy0[i] + dt/2 * a2[i].second;
+        x2[i] = x0[i] + dt * RK4_HALF * vx1[i];
+        y2[i] = y0[i] + dt * RK4_HALF * vy1[i];
+        vx2[i] = vx0[i] + dt * RK4_HALF * a2[i].first;
+        vy2[i] = vy0[i] + dt * RK4_HALF * a2[i].second;
     }
 
     // k3: derivatives at the midpoint using k2
@@ -175,10 +187,10 @@ void rk4_step(std::vector<Entity> &entities, Real dt)
     // Final RK4 combination: y_{n+1} = y_n + dt/6 * (k1 + 2*k2 + 2*k3 + k4)
     for (size_t i = 0; i < n; ++i)
     {
-        entities[i].x = x0[i] + dt/6 * (vx0[i] + 2*vx1[i] + 2*vx2[i] + vx3[i]);
-        entities[i].y = y0[i] + dt/6 * (vy0[i] + 2*vy1[i] + 2*vy2[i] + vy3[i]);
-        entities[i].v_x = vx0[i] + dt/6 * (a1[i].first + 2*a2[i].first + 2*a3[i].first + a4[i].first);
-        entities[i].v_y = vy0[i] + dt/6 * (a1[i].second + 2*a2[i].second + 2*a3[i].second + a4[i].second);
+        entities[i].x = x0[i] + dt * RK4_SIXTH * (vx0[i] + RK4_MIDPOINT_COEFF*vx1[i] + RK4_MIDPOINT_COEFF*vx2[i] + vx3[i]);
+        entities[i].y = y0[i] + dt * RK4_SIXTH * (vy0[i] + RK4_MIDPOINT_COEFF*vy1[i] + RK4_MIDPOINT_COEFF*vy2[i] + vy3[i]);
+        entities[i].v_x = vx0[i] + dt * RK4_SIXTH * (a1[i].first + RK4_MIDPOINT_COEFF*a2[i].first + RK4_MIDPOINT_COEFF*a3[i].first + a4[i].first);
+        entities[i].v_y = vy0[i] + dt * RK4_SIXTH * (a1[i].second + RK4_MIDPOINT_COEFF*a2[i].second + RK4_MIDPOINT_COEFF*a3[i].second + a4[i].second);
     }
 }
 
